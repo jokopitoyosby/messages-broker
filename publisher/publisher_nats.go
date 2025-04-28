@@ -32,18 +32,15 @@ type NatsPublisher struct {
 	OnStreamCreated func(nc *nats.Conn, js nats.JetStreamContext)
 }
 
-func NewNatsPublisher(url string, streamName string, topics []string, username string, password string, OnConnect func(nc *nats.Conn), OnDisconnect func(nc *nats.Conn), OnStreamCreated func(nc *nats.Conn, js nats.JetStreamContext)) *NatsPublisher {
+func NewNatsPublisher(url string, username string, password string) *NatsPublisher {
 	return &NatsPublisher{
 		url:         url,
-		topics:      topics,
+		username:    username,
+		password:    password,
 		reconnected: make(chan bool),
 		stopChan:    make(chan struct{}),
 		done:        make(chan struct{}),
 		data:        make(chan *DataToPublish),
-		streamName:  streamName,
-		username:    username,
-		password:    password,
-		OnConnect:   OnConnect,
 	}
 }
 
@@ -86,30 +83,30 @@ func (p *NatsPublisher) Connect() error {
 	fmt.Println("Connected to NATS")
 
 	// 2. Buat JetStream Context
-	js, err := nc.JetStream()
-	if err != nil {
-		log.Printf("Gagal akses JetStream:%+v\n", err)
-		nc.Close()
-		return fmt.Errorf("failed to create JetStream context: %v", err)
-	}
+	// js, err := nc.JetStream()
+	// if err != nil {
+	// 	log.Printf("Gagal akses JetStream:%+v\n", err)
+	// 	nc.Close()
+	// 	return fmt.Errorf("failed to create JetStream context: %v", err)
+	// }
 	if p.OnConnect != nil {
 		p.OnConnect(nc)
 	}
-	_, err = js.StreamInfo(p.streamName)
-	if err == nil {
-		err = p.CreateStream(js, p.streamName, p.topics, 3)
-		if err != nil {
-			fmt.Printf("err: %v\n", err)
-			nc.Close()
-			return fmt.Errorf("failed to create stream: %v", err)
-		}
-	}
-	if p.OnStreamCreated != nil {
-		p.OnStreamCreated(nc, js)
-	}
+	// _, err = js.StreamInfo(p.streamName)
+	// if err == nil {
+	// 	err = p.CreateStream(js, p.streamName, p.topics, 3)
+	// 	if err != nil {
+	// 		fmt.Printf("err: %v\n", err)
+	// 		nc.Close()
+	// 		return fmt.Errorf("failed to create stream: %v", err)
+	// 	}
+	// }
+	// if p.OnStreamCreated != nil {
+	// 	p.OnStreamCreated(nc, js)
+	// }
 
-	p.js = js
-	p.conn = nc
+	// p.js = js
+	// p.conn = nc
 	return nil
 }
 
