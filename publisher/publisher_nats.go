@@ -15,22 +15,24 @@ type DataToPublish struct {
 }
 
 type NatsPublisher struct {
-	conn        *nats.Conn
-	url         string
-	reconnected chan bool
-	stopChan    chan struct{}
-	done        chan struct{}
-	data        chan *DataToPublish
-	topics      []string
-	connecting  bool
-	js          nats.JetStreamContext
-	streamName  string
-	username    string
-	password    string
-	callback    func(topic string, msg *nats.Msg) ([]byte, error)
+	conn            *nats.Conn
+	url             string
+	reconnected     chan bool
+	stopChan        chan struct{}
+	done            chan struct{}
+	data            chan *DataToPublish
+	topics          []string
+	connecting      bool
+	js              nats.JetStreamContext
+	streamName      string
+	username        string
+	password        string
+	OnConnect       func(nc *nats.Conn)
+	OnDisconnect    func(nc *nats.Conn)
+	OnStreamCreated func(nc *nats.Conn, js nats.JetStreamContext)
 }
 
-func NewNatsPublisher(url string, streamName string, topics []string, username string, password string, callback func(topic string, msg *nats.Msg) ([]byte, error)) *NatsPublisher {
+func NewNatsPublisher(url string, streamName string, topics []string, username string, password string, OnConnect func(nc *nats.Conn), OnDisconnect func(nc *nats.Conn), OnStreamCreated func(nc *nats.Conn, js nats.JetStreamContext)) *NatsPublisher {
 	return &NatsPublisher{
 		url:         url,
 		topics:      topics,
@@ -41,19 +43,10 @@ func NewNatsPublisher(url string, streamName string, topics []string, username s
 		streamName:  streamName,
 		username:    username,
 		password:    password,
-		callback:    callback,
+		OnConnect:   OnConnect,
 	}
 }
-func (p *NatsPublisher) WaittingRequest(subject string, message []byte) error {
-	p.conn.Subscribe(subject, func(msg *nats.Msg) {
-		bytes, err := p.callback(msg.Subject, msg)
-		if err != nil {
-			fmt.Printf("err: %v\n", err)
-		}
-		msg.Respond(bytes)
-	})
-	return nil
-}
+
 func (p *NatsPublisher) CreateStream(js nats.JetStreamContext, streamName string, topics []string, replicas int) error {
 	_, err := js.StreamInfo(streamName)
 	if err == nil {
@@ -99,12 +92,20 @@ func (p *NatsPublisher) Connect() error {
 		nc.Close()
 		return fmt.Errorf("failed to create JetStream context: %v", err)
 	}
-
-	err = p.CreateStream(js, p.streamName, p.topics, 3)
-	if err != nil {
-		fmt.Printf("err: %v\n", err)
-		nc.Close()
-		return fmt.Errorf("failed to create stream: %v", err)
+	if p.OnConnect != nil {
+		p.OnConnect(nc)
+	}
+	_, err = js.StreamInfo(p.streamName)
+	if err == nil {
+		err = p.CreateStream(js, p.streamName, p.topics, 3)
+		if err != nil {
+			fmt.Printf("err: %v\n", err)
+			nc.Close()
+			return fmt.Errorf("failed to create stream: %v", err)
+		}
+	}
+	if p.OnStreamCreated != nil {
+		p.OnStreamCreated(nc, js)
 	}
 
 	p.js = js
