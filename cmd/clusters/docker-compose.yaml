@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  nats1:
+    image: nats:latest
+    hostname: nats1
+    container_name: nats1
+    command: [
+      "--cluster_name", "NATS_JETSTREAM_CLUSTER",
+      "--server_name", "nats1",
+      "--cluster", "nats://nats1:6222",
+      "--routes", "nats://nats2:6222,nats://nats3:6222",
+      "--jetstream",
+      "--store_dir", "/data",
+      "--cluster_peers", "nats1,nats2,nats3",  # Auto-discovery
+      "--cluster_protocol", "2"  # Protokol versi terbaru
+    ]
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    volumes:
+      - ./nats1/data:/var/lib/nats
+    networks:
+      - nats_network
+
+  nats2:
+    image: nats:latest
+    hostname: nats2
+    container_name: nats2
+    command: [
+      "--cluster_name", "NATS_JETSTREAM_CLUSTER",
+      "--server_name", "nats2",
+      "--cluster", "nats://nats2:6222",
+      "--routes", "nats://nats1:6222,nats://nats3:6222",
+      "--jetstream",
+      "--store_dir", "/data",
+      "--cluster_peers", "nats1,nats2,nats3",  # Auto-discovery
+      "--cluster_protocol", "2"  # Protokol versi terbaru
+    ]
+    ports:
+      - "4223:4222"
+      - "6223:6222"
+      - "8223:8222"
+    volumes:
+      - ./nats2/data:/var/lib/nats
+    networks:
+      - nats_network
+
+  nats3:
+    image: nats:latest
+    hostname: nats3
+    container_name: nats3
+    command: [
+      "--cluster_name", "NATS_JETSTREAM_CLUSTER",
+      "--server_name", "nats3",
+      "--cluster", "nats://nats3:6222",
+      "--routes", "nats://nats1:6222,nats://nats2:6222",
+      "--jetstream",
+      "--store_dir", "/data",
+      "--cluster_peers", "nats1,nats2,nats3",  # Auto-discovery
+      "--cluster_protocol", "2"  # Protokol versi terbaru
+    ]
+    ports:
+      - "4224:4222"
+      - "6224:6222"
+      - "8224:8222"
+    volumes:
+      - ./nats3/data:/var/lib/nats
+    networks:
+      - nats_network
+
+networks:
+  nats_network:
+    driver: bridge

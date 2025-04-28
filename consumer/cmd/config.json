@@ -1,0 +1,6 @@
+{
+    "host": "srv3.twingps.com",
+    "port": 5672,
+    "username": "admin",
+    "password": "bismillah"
+}

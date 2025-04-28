@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  nats-server:
+    image: nats:latest
+    container_name: nats-server
+    command: -js -sd /data
+    ports:
+      - "4222:4222"  # NATS client port
+      - "8222:8222"  # HTTP monitoring port
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+    driver: local
