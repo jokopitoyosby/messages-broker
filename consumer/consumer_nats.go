@@ -53,6 +53,13 @@ func (c *NatsConsumer) Stop() error {
 	return nil
 }
 
+func (p *NatsConsumer) IsStreamExists(js nats.JetStreamContext, streamName string) bool {
+	_, err := js.StreamInfo(streamName)
+	if err == nil {
+		return true
+	}
+	return false
+}
 func (p *NatsConsumer) CreateStream(nc *nats.Conn, streamName string, topics []string, replicas int) (*nats.StreamInfo, error) {
 	fmt.Printf("create stream\n")
 	if p.js == nil {
@@ -112,6 +119,11 @@ func (p *NatsConsumer) Connect() {
 		if p.OnConnected != nil {
 			p.OnConnected(nc)
 		}
+
+		p.lock.Lock()
+		p.connected = true
+		p.conn = nc
+		p.lock.Unlock()
 		/*for {
 			_, err := p.CreateStream(nc, p.streamName, p.topics, 1)
 			if err != nil {
