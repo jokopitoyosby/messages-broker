@@ -21,23 +21,25 @@ type NatsConsumer struct {
 	url           string
 	handler       MessageHandler
 	subsriberName string
-	streamName    string
-	connected     bool
-	lock          sync.Mutex
+	//streamName     string
+	connected      bool
+	lock           sync.Mutex
+	OnConnected    func(*nats.Conn)
+	OnDisconnected func(*nats.Conn, error)
+	OnReconnected  func(*nats.Conn)
+	OnClosed       func(*nats.Conn)
 }
 
-func NewNatsConsumer(url string, streamName string, topics []string, handler MessageHandler, subsriberName string) *NatsConsumer {
+func NewNatsConsumer(url string, username string, password string) *NatsConsumer {
 	return &NatsConsumer{
-		streamName: streamName,
-		topics:     topics,
-		done:       make(chan struct{}),
-		stop:       make(chan struct{}),
-		data:       make(chan []byte, 10000),
+		//streamName: streamName,
+		//topics:     topics,
+		done: make(chan struct{}),
+		stop: make(chan struct{}),
+		data: make(chan []byte, 10000),
 		//reconnected:   make(chan bool),
-		url:           url,
-		handler:       handler,
-		subsriberName: subsriberName,
-		connected:     false,
+		url:       url,
+		connected: false,
 	}
 }
 
@@ -87,23 +89,31 @@ func (p *NatsConsumer) Connect() {
 		nats.MaxReconnects(-1), // Unlimited reconnects
 		nats.MaxPingsOutstanding(5),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			log.Printf("Disconnected from NATS: %v", err)
+			if p.OnDisconnected != nil {
+				p.OnDisconnected(nc, err)
+			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			log.Printf("Reconnected to NATS at %s", nc.ConnectedUrl())
+			if p.OnReconnected != nil {
+				p.OnReconnected(nc)
+			}
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
 			log.Printf("NATS connection closed")
-			//p.connected = false
+			if p.OnClosed != nil {
+				p.OnClosed(nc)
+			}
 		}),
 	}
 	fmt.Printf("connect to cluster p.url: %v\n", p.url)
 
 	nc, err := nats.Connect(p.url, opts...)
 	if err == nil {
-		fmt.Printf("connected to cluster\n")
-		for {
-			_, err := p.CreateStream(nc, p.streamName, p.topics, 3)
+		if p.OnConnected != nil {
+			p.OnConnected(nc)
+		}
+		/*for {
+			_, err := p.CreateStream(nc, p.streamName, p.topics, 1)
 			if err != nil {
 				log.Printf("Failed to create stream: %v", err)
 				if nc.IsClosed() {
@@ -138,7 +148,7 @@ func (p *NatsConsumer) Connect() {
 		for _, topic := range p.topics {
 			fmt.Printf("topic: %v\n", topic)
 			go p.Subscribe(p.streamName, topic, p.subsriberName)
-		}
+		}*/
 		p.monitorConnection()
 	} else {
 		go func() {
@@ -216,13 +226,13 @@ func (c *NatsConsumer) Subscribe(streamName string, topic string, subsriberName 
 		}
 
 		for {
-			msgs, err := sub.Fetch(1, nats.MaxWait(5*time.Second))
+			msgs, err := sub.Fetch(100, nats.MaxWait(5*time.Second))
 			if err != nil {
 				if err == nats.ErrTimeout {
 					continue
 				}
 				log.Printf("Fetch error: %v", err)
-				time.Sleep(1 * time.Second)
+				time.Sleep(1 * time.Millisecond)
 				continue
 			}
 
@@ -272,7 +282,7 @@ func (c *NatsConsumer) monitorConnection() {
 	}
 }
 func (c *NatsConsumer) readMessages(topic string, consumerName string) {
-	var sub *nats.Subscription
+	/*var sub *nats.Subscription
 	retryDelay := time.Second
 
 	for {
@@ -326,7 +336,7 @@ func (c *NatsConsumer) readMessages(topic string, consumerName string) {
 			continue
 		}
 		msg.Ack()
-	}
+	}*/
 }
 
 func minDuration(a, b time.Duration) time.Duration {
